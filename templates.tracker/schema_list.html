@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row mb-4">
+        <div class="col">
+            <h1>All Schemas</h1>
+            <p class="lead">Browse all detected schemas in the system.</p>
+        </div>
+    </div>
+
+    {% if schemas %}
+    <div class="row">
+        <div class="col">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                    <tr>
+                        <th>File</th>
+                        <th>Canonical Name</th>
+                        <th>Detected Date</th>
+                        <th>Columns</th>
+                        <th>Rows</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for schema in schemas %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'datasource_detail' schema.data_source.pk %}">
+                                {{ schema.data_source.original_filename }}
+                            </a>
+                        </td>
+                        <td>{{ schema.data_source.canonical_name }} v{{ schema.data_source.schema_version }}</td>
+                        <td>{{ schema.detected_date|date:"M d, Y" }}</td>
+                        <td>{{ schema.column_definitions|length }}</td>
+                        <td>{{ schema.row_count }}</td>
+                        <td>
+                            <a href="{% url 'datasource_detail' schema.data_source.pk %}" class="btn btn-sm btn-outline-primary">
+                                View
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        No schemas have been detected yet. <a href="{% url 'upload' %}" class="alert-link">Upload a file</a> to get started.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

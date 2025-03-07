@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="mb-0">Upload New Data Source</h2>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.file.id_for_label }}" class="form-label">File</label>
+                            {{ form.file }}
+                            <div class="form-text">Supported formats: CSV, Excel</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.canonical_name.id_for_label }}" class="form-label">Canonical Name</label>
+                            {{ form.canonical_name }}
+                            <div class="form-text">{{ form.canonical_name.help_text }}</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.source_type.id_for_label }}" class="form-label">Source Type</label>
+                            {{ form.source_type }}
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">Upload & Analyze</button>
+                            <a href="{% url 'home' %}" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

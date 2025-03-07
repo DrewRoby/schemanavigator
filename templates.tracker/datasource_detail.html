@@ -1,0 +1,228 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row mb-4">
+        <div class="col">
+            <h1>{{ datasource.original_filename }}</h1>
+            <p class="text-muted">Uploaded on {{ datasource.upload_date|date:"F d, Y, H:i" }}</p>
+            <div class="badge bg-primary">{{ datasource.get_source_type_display }}</div>
+            <div class="badge bg-secondary">{{ datasource.canonical_name }} v{{ datasource.schema_version }}</div>
+
+            {% if schema %}
+            <div class="badge bg-info text-dark">{{ schema.row_count }} rows</div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if not schema %}
+    <div class="alert alert-warning">
+        No schema information found for this data source.
+    </div>
+    {% else %}
+
+    <!-- Schema Details -->
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Schema Details</h3>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                            <tr>
+                                <th>Column Name</th>
+                                <th>Data Type</th>
+                                <th>Sample Values</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for column, details in schema.column_definitions.items %}
+                            <tr>
+                                <td>{{ column }}</td>
+                                <td><code>{{ details.type }}</code></td>
+                                <td>
+                                    {% if details.sample_values %}
+                                    <small>{{ details.sample_values|join:", " }}</small>
+                                    {% else %}
+                                    <small class="text-muted">No samples</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Primary Key Candidates -->
+    {% if primary_keys %}
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h3 class="mb-0">Primary Key Candidates</h3>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                            <tr>
+                                <th>Column</th>
+                                <th>Uniqueness</th>
+                                <th>Status</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for key in primary_keys %}
+                            <tr>
+                                <td>{{ key.column_name }}</td>
+                                <td>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-success" role="progressbar"
+                                             style="width: {{ key.uniqueness_ratio|floatformat:2|mul:100 }}%">
+                                            {{ key.uniqueness_ratio|floatformat:2|mul:100 }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if key.is_confirmed %}
+                                    <span class="badge bg-success">Confirmed</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Candidate</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Schema Changes -->
+    {% if changes %}
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h3 class="mb-0">Schema Changes</h3>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Date</th>
+                                <th>Details</th>
+                                <th>Previous Version</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for change in changes %}
+                            <tr>
+                                <td>{{ change.get_change_type_display }}</td>
+                                <td>{{ change.change_date|date:"M d, Y" }}</td>
+                                <td>
+                                    {% if change.details.columns %}
+                                    <small>{{ change.details.columns|join:", " }}</small>
+                                    {% else %}
+                                    <small class="text-muted">No details</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if change.previous_version %}
+                                    <a href="{% url 'datasource_detail' change.previous_version.pk %}">
+                                        {{ change.previous_version.original_filename }}
+                                    </a>
+                                    {% else %}
+                                    <small class="text-muted">None</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Related Schemas -->
+    {% if relationships %}
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h3 class="mb-0">Related Schemas</h3>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                            <tr>
+                                <th>Related File</th>
+                                <th>Relationship</th>
+                                <th>Similarity</th>
+                                <th>Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for rel in relationships %}
+                            <tr>
+                                <td>
+                                    {% if rel.source_schema.data_source.pk == datasource.pk %}
+                                    <a href="{% url 'datasource_detail' rel.target_schema.data_source.pk %}">
+                                        {{ rel.target_schema.data_source.original_filename }}
+                                    </a>
+                                    {% else %}
+                                    <a href="{% url 'datasource_detail' rel.source_schema.data_source.pk %}">
+                                        {{ rel.source_schema.data_source.original_filename }}
+                                    </a>
+                                    {% endif %}
+                                </td>
+                                <td>{{ rel.get_relationship_type_display }}</td>
+                                <td>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-warning" role="progressbar"
+                                             style="width: {{ rel.similarity_score|floatformat:2|mul:100 }}%">
+                                            {{ rel.similarity_score|floatformat:2|mul:100 }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if rel.source_schema.data_source.pk == datasource.pk %}
+                                    <a href="{% url 'compare_schemas' schema.pk rel.target_schema.pk %}" class="btn btn-sm btn-outline-primary">
+                                        Compare
+                                    </a>
+                                    {% else %}
+                                    <a href="{% url 'compare_schemas' schema.pk rel.source_schema.pk %}" class="btn btn-sm btn-outline-primary">
+                                        Compare
+                                    </a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% endif %}
+</div>
+{% endblock %}

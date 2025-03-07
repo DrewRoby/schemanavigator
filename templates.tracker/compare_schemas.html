@@ -1,0 +1,187 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row mb-4">
+        <div class="col">
+            <h1>Compare Schemas</h1>
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <div>
+                    <h5>{{ schema1.data_source.original_filename }}</h5>
+                    <small class="text-muted">{{ schema1.data_source.upload_date|date:"M d, Y" }}</small>
+                </div>
+                <div class="text-center">
+                    <span class="badge bg-primary fs-5">VS</span>
+                </div>
+                <div class="text-end">
+                    <h5>{{ schema2.data_source.original_filename }}</h5>
+                    <small class="text-muted">{{ schema2.data_source.upload_date|date:"M d, Y" }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Comparison Summary</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-4">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h2 class="text-success">{{ common_columns|length }}</h2>
+                                    <p class="mb-0">Common Columns</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h2 class="text-danger">{{ only_in_schema1|length }}</h2>
+                                    <p class="mb-0">Only in {{ schema1.data_source.original_filename }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h2 class="text-warning">{{ only_in_schema2|length }}</h2>
+                                    <p class="mb-0">Only in {{ schema2.data_source.original_filename }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Visualization -->
+                    <div class="row">
+                        <div class="col-md-8 offset-md-2">
+                            <canvas id="comparisonChart" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Common Columns -->
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h3 class="mb-0">Common Columns ({{ common_columns|length }})</h3>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                            <tr>
+                                <th>Column</th>
+                                <th>Type in {{ schema1.data_source.original_filename }}</th>
+                                <th>Type in {{ schema2.data_source.original_filename }}</th>
+                                <th>Status</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for column in common_columns %}
+                            <tr>
+                                <td>{{ column }}</td>
+                                <td><code>{{ schema1.column_definitions|get_item:column|get_item:'type' }}</code></td>
+                                <td><code>{{ schema2.column_definitions|get_item:column|get_item:'type' }}</code></td>
+                                <td>
+                                    {% if column in type_differences %}
+                                    <span class="badge bg-warning text-dark">Type Differs</span>
+                                    {% else %}
+                                    <span class="badge bg-success">Identical</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Different Columns -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-danger text-white">
+                    <h3 class="mb-0">Only in {{ schema1.data_source.original_filename }} ({{ only_in_schema1|length }})</h3>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        {% for column in only_in_schema1 %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ column }}
+                            <span class="badge bg-secondary">{{ schema1.column_definitions|get_item:column|get_item:'type' }}</span>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item">No unique columns.</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h3 class="mb-0">Only in {{ schema2.data_source.original_filename }} ({{ only_in_schema2|length }})</h3>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group
+                            <ul class="list-group">
+                    {% for column in only_in_schema2 %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ column }}
+                        <span class="badge bg-secondary">{{ schema2.column_definitions|get_item:column|get_item:'type' }}</span>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item">No unique columns.</li>
+                    {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('comparisonChart').getContext('2d');
+
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Common Columns', 'Only in {{ schema1.data_source.original_filename }}', 'Only in {{ schema2.data_source.original_filename }}'],
+                datasets: [{
+                    label: 'Column Comparison',
+                    data: [{{ common_columns|length }}, {{ only_in_schema1|length }}, {{ only_in_schema2|length }}],
+                    backgroundColor: ['rgba(40, 167, 69, 0.7)', 'rgba(220, 53, 69, 0.7)', 'rgba(255, 193, 7, 0.7)'],
+                    borderColor: ['rgb(40, 167, 69)', 'rgb(220, 53, 69)', 'rgb(255, 193, 7)'],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}
+{% endblock %}

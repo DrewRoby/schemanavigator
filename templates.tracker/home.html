@@ -2,7 +2,34 @@
 
 {% block content %}
 <div class="container mt-5">
-    <h1>Schema Navigator</h1>
-    <p>Track and visualize schema evolution over time.</p>
+    <div class="row mb-4">
+        <div class="col">
+            <h1>Schema Navigator</h1>
+            <p class="lead">Track and visualize schema evolution over time.</p>
+            <div class="d-grid gap-2 d-md-flex">
+                <a href="{% url 'upload' %}" class="btn btn-primary btn-lg">Upload New Data Source</a>
+                <a href="{% url 'schema_list' %}" class="btn btn-outline-secondary btn-lg">View All Schemas</a>
+            </div>
+        </div>
+    </div>
+
+    {% if recent_sources %}
+    <div class="row mt-4">
+        <div class="col">
+            <h3>Recently Added Data Sources</h3>
+            <div class="list-group">
+                {% for source in recent_sources %}
+                <a href="{% url 'datasource_detail' source.pk %}" class="list-group-item list-group-item-action">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">{{ source.original_filename }}</h5>
+                        <small>{{ source.upload_date|date:"M d, Y" }}</small>
+                    </div>
+                    <p class="mb-1">{{ source.canonical_name }} (v{{ source.schema_version }})</p>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
