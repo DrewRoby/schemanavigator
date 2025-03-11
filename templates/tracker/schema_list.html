@@ -38,9 +38,38 @@
                         <td>{{ schema.column_definitions|length }}</td>
                         <td>{{ schema.row_count }}</td>
                         <td>
-                            <a href="{% url 'datasource_detail' schema.data_source.pk %}" class="btn btn-sm btn-outline-primary">
-                                View
-                            </a>
+                            <div class="btn-group" role="group">
+                                <a href="{% url 'datasource_detail' schema.data_source.pk %}" class="btn btn-sm btn-outline-primary">
+                                    View
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                        data-bs-toggle="modal" data-bs-target="#deleteModal{{ schema.pk }}">
+                                    Delete
+                                </button>
+                            </div>
+
+                            <!-- Delete Confirmation Modal for each schema -->
+                            <div class="modal fade" id="deleteModal{{ schema.pk }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ schema.pk }}" aria-hidden="true">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header bg-danger text-white">
+                                            <h5 class="modal-title" id="deleteModalLabel{{ schema.pk }}">Confirm Deletion</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <p>Are you sure you want to delete <strong>{{ schema.data_source.original_filename }}</strong>?</p>
+                                            <p class="text-danger"><small>This action cannot be undone.</small></p>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                            <form method="post" action="{% url 'delete_datasource' schema.data_source.pk %}">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-danger">Delete</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
