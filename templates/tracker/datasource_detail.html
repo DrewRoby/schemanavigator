@@ -113,15 +113,90 @@
         }
     </script>
 
-    <div class="mb-4">
-        <form method="post" action="{% url 'reprocess_file' datasource.pk %}">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-warning">
-                {% if schema %}Re-analyze and Create New Version{% else %}Re-attempt Analysis{% endif %}
-            </button>
-        </form>
+<!--    <div class="mb-4">-->
+<!--        <form method="post" action="{% url 'reprocess_file' datasource.pk %}">-->
+<!--            {% csrf_token %}-->
+<!--            <button type="submit" class="btn btn-warning">-->
+<!--                {% if schema %}Re-analyze and Create New Version{% else %}Re-attempt Analysis{% endif %}-->
+<!--            </button>-->
+<!--        </form>-->
+<!--    </div>-->
+
+    <!-- File Action Options -->
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">File Actions</h3>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'reanalyze_file' datasource.pk %}" class="btn btn-warning">
+                            <i class="bi bi-arrow-repeat"></i> {% if schema %}Re-analyze File{% else %}Analyze File{% endif %}
+                        </a>
+
+                        <div class="dropdown">
+                            <button class="btn btn-secondary dropdown-toggle" type="button" id="downloadDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-download"></i> Download
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="downloadDropdown">
+                                <li><a class="dropdown-item" href="{{ datasource.file.url }}" download>Original File</a></li>
+                                {% if schema %}
+                                <li><a class="dropdown-item" href="#" onclick="downloadSchemaJson()">Schema Definition (JSON)</a></li>
+                                {% endif %}
+                            </ul>
+                        </div>
+
+                        <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                            <i class="bi bi-trash"></i> Delete
+                        </button>
+                    </div>
+
+                    <!-- Delete Confirmation Modal -->
+                    <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header bg-danger text-white">
+                                    <h5 class="modal-title" id="deleteModalLabel">Confirm Deletion</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>Are you sure you want to delete <strong>{{ datasource.original_filename }}</strong>?</p>
+                                    <p class="text-danger"><small>This action cannot be undone.</small></p>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    <form method="post" action="{% url 'delete_datasource' datasource.pk %}">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-danger">Delete</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
+    <script>
+    function downloadSchemaJson() {
+        // Create a JSON blob and download it
+        const schemaData = {{ schema.column_definitions|safe }};
+        const fileName = "{{ datasource.canonical_name }}_v{{ datasource.schema_version }}_schema.json";
+
+        const blob = new Blob([JSON.stringify(schemaData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+</script>
 
     <!-- Schema Details -->
     <div class="row mb-4">

@@ -1,0 +1,186 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-5">
+  <div class="row mb-4">
+    <div class="col">
+      <h1>File Preview: {{ datasource.original_filename }}</h1>
+      <p class="text-muted">Uploaded on {{ datasource.upload_date|date:"F d, Y, H:i" }}</p>
+
+      <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+          <h3 class="mb-0">File Analysis Options</h3>
+        </div>
+        <div class="card-body">
+          <form method="post" action="{% url 'reprocess_file' datasource.pk %}">
+            {% csrf_token %}
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="file_type" class="form-label">File Type</label>
+                <select name="file_type" id="file_type" class="form-select" onchange="toggleOptions(this.value)">
+                  <option value="csv" {% if datasource.source_type == 'csv' %}selected{% endif %}>CSV</option>
+                  <option value="excel" {% if datasource.source_type == 'excel' %}selected{% endif %}>Excel</option>
+                  <option value="json" {% if datasource.source_type == 'json' %}selected{% endif %}>JSON</option>
+                  <option value="other" {% if datasource.source_type == 'other' %}selected{% endif %}>Other</option>
+                </select>
+              </div>
+
+              <div class="col-md-6" id="delimiter_options">
+                <label for="delimiter_preset" class="form-label">CSV Delimiter</label>
+                <div class="input-group">
+                  <select name="delimiter_preset" id="delimiter_preset" class="form-select" onchange="updateCustomDelimiter(this.value)">
+                    <option value="comma">Comma (,)</option>
+                    <option value="tab">Tab</option>
+                    <option value="semicolon">Semicolon (;)</option>
+                    <option value="pipe">Pipe (|)</option>
+                    <option value="custom">Custom...</option>
+                  </select>
+                  <input type="text" name="delimiter_custom" id="delimiter_custom" class="form-control"
+                         placeholder="Custom delimiter" style="display: none;" maxlength="1">
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-3" id="encoding_options">
+              <label for="encoding" class="form-label">File Encoding</label>
+              <select name="encoding" id="encoding" class="form-select" onchange="updatePreview()">
+                <option value="utf-8">UTF-8</option>
+                <option value="latin-1">Latin-1</option>
+                <option value="iso-8859-1">ISO-8859-1</option>
+                <option value="cp1252">Windows-1252</option>
+              </select>
+            </div>
+
+            <div class="mb-3" id="excel_options" style="display: none;">
+              <label for="sheet_name" class="form-label">Excel Sheet Name/Index</label>
+              <input type="text" name="sheet_name" id="sheet_name" class="form-control"
+                     placeholder="Leave blank for first sheet or specify sheet name/index">
+            </div>
+
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" name="create_new_version" id="create_new_version">
+              <label class="form-check-label" for="create_new_version">
+                Create new version (if identical, will update existing)
+              </label>
+            </div>
+
+            <div class="d-grid">
+              <button type="button" class="btn btn-info mb-3" onclick="updatePreview()">Preview</button>
+              <button type="submit" class="btn btn-primary">Analyze File</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- File Preview Section -->
+      <div class="card">
+        <div class="card-header bg-secondary text-white">
+          <h3 class="mb-0">File Preview (First 10 lines)</h3>
+        </div>
+        <div class="card-body">
+          <div id="preview-loading" class="text-center" style="display: none;">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading preview...</p>
+          </div>
+          <div id="preview-content">
+            <pre class="bg-light p-3 mb-0" style="max-height: 400px; overflow-y: auto;">{{ file_preview|default:"Click 'Preview' to see file content" }}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const fileTypeSelect = document.getElementById('file_type');
+        if (fileTypeSelect) {
+            toggleOptions(fileTypeSelect.value);
+        }
+    });
+
+    function toggleOptions(fileType) {
+        const delimiterDiv = document.getElementById('delimiter_options');
+        const excelDiv = document.getElementById('excel_options');
+        const encodingDiv = document.getElementById('encoding_options');
+
+        if (fileType === 'csv') {
+            delimiterDiv.style.display = 'block';
+            excelDiv.style.display = 'none';
+            encodingDiv.style.display = 'block';
+        } else if (fileType === 'excel') {
+            delimiterDiv.style.display = 'none';
+            excelDiv.style.display = 'block';
+            encodingDiv.style.display = 'none';
+        } else if (fileType === 'json') {
+            delimiterDiv.style.display = 'none';
+            excelDiv.style.display = 'none';
+            encodingDiv.style.display = 'block';
+        } else {
+            delimiterDiv.style.display = 'none';
+            excelDiv.style.display = 'none';
+            encodingDiv.style.display = 'block';
+        }
+    }
+
+    function updateCustomDelimiter(value) {
+        const customInput = document.getElementById('delimiter_custom');
+        if (value === 'custom') {
+            customInput.style.display = 'block';
+            customInput.focus();
+        } else {
+            customInput.style.display = 'none';
+        }
+    }
+
+    function updatePreview() {
+        const previewContent = document.getElementById('preview-content');
+        const previewLoading = document.getElementById('preview-loading');
+        const fileType = document.getElementById('file_type').value;
+        const encoding = document.getElementById('encoding').value;
+        let delimiter = '';
+        
+        if (fileType === 'csv') {
+            const delimiterPreset = document.getElementById('delimiter_preset').value;
+            if (delimiterPreset === 'comma') delimiter = ',';
+            else if (delimiterPreset === 'tab') delimiter = 'tab';
+            else if (delimiterPreset === 'semicolon') delimiter = ';';
+            else if (delimiterPreset === 'pipe') delimiter = '|';
+            else if (delimiterPreset === 'custom') {
+                delimiter = document.getElementById('delimiter_custom').value || ',';
+            }
+        }
+        
+        let sheetName = '';
+        if (fileType === 'excel') {
+            sheetName = document.getElementById('sheet_name').value || '';
+        }
+        
+        // Show loading
+        previewContent.style.display = 'none';
+        previewLoading.style.display = 'block';
+        
+        // Make AJAX request to get preview
+        fetch(`{% url 'file_preview' datasource.pk %}?file_type=${fileType}&encoding=${encoding}&delimiter=${delimiter}&sheet_name=${sheetName}`)
+            .then(response => response.json())
+            .then(data => {
+                const previewElement = previewContent.querySelector('pre');
+                previewElement.textContent = data.preview;
+                
+                // Hide loading, show content
+                previewLoading.style.display = 'none';
+                previewContent.style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error fetching preview:', error);
+                const previewElement = previewContent.querySelector('pre');
+                previewElement.textContent = 'Error loading preview. Please try different settings.';
+                
+                // Hide loading, show content
+                previewLoading.style.display = 'none';
+                previewContent.style.display = 'block';
+            });
+    }
+</script>
+{% endblock %}

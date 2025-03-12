@@ -10,4 +10,6 @@ urlpatterns = [
     path('datasource/<int:pk>/retry/', views.retry_detection, name='retry_detection'),
     path('datasource/<int:pk>/reprocess/', views.reprocess_file, name='reprocess_file'),
     path('datasource/<int:pk>/delete/', views.delete_datasource, name='delete_datasource'),
+    path('datasource/<int:pk>/preview/', views.file_preview, name='file_preview'),
+    path('datasource/<int:pk>/reanalyze/', views.reanalyze_file, name='reanalyze_file'),
 ]

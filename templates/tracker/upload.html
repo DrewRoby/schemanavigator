@@ -10,13 +10,13 @@
                     <h2 class="mb-0">Upload New Data Source</h2>
                 </div>
                 <div class="card-body">
-                    <form method="post" enctype="multipart/form-data">
+                    <form method="post" enctype="multipart/form-data" id="uploadForm">
                         {% csrf_token %}
 
                         <div class="mb-3">
                             <label for="{{ form.file.id_for_label }}" class="form-label">File</label>
                             {{ form.file }}
-                            <div class="form-text">Supported formats: CSV, Excel</div>
+                            <div class="form-text">Supported formats: CSV, Excel, JSON</div>
                         </div>
 
                         <div class="mb-3">
@@ -30,6 +30,74 @@
                             {{ form.source_type }}
                         </div>
 
+                        <!-- Advanced options (initially hidden) -->
+                        <div class="mb-3">
+                            <button type="button" class="btn btn-outline-secondary" id="toggleOptions">
+                                Show Advanced Options
+                            </button>
+                        </div>
+
+                        <div id="advancedOptions" style="display: none;">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <div class="row mb-3" id="delimiterOptions" style="display: none;">
+                                        <div class="col-md-6">
+                                            <label for="delimiter_preset" class="form-label">CSV Delimiter</label>
+                                            <div class="input-group">
+                                                <select name="delimiter_preset" id="delimiter_preset" class="form-select" onchange="updateCustomDelimiter(this.value)">
+                                                    <option value="comma">Comma (,)</option>
+                                                    <option value="tab">Tab</option>
+                                                    <option value="semicolon">Semicolon (;)</option>
+                                                    <option value="pipe">Pipe (|)</option>
+                                                    <option value="custom">Custom...</option>
+                                                </select>
+                                                <input type="text" name="delimiter_custom" id="delimiter_custom" class="form-control"
+                                                       placeholder="Custom delimiter" style="display: none;" maxlength="1">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3" id="encodingOptions">
+                                        <label for="encoding" class="form-label">File Encoding</label>
+                                        <select name="encoding" id="encoding" class="form-select">
+                                            <option value="utf-8">UTF-8</option>
+                                            <option value="latin-1">Latin-1</option>
+                                            <option value="iso-8859-1">ISO-8859-1</option>
+                                            <option value="cp1252">Windows-1252</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="mb-3" id="excelOptions" style="display: none;">
+                                        <label for="sheet_name" class="form-label">Excel Sheet Name/Index</label>
+                                        <input type="text" name="sheet_name" id="sheet_name" class="form-control"
+                                               placeholder="Leave blank for first sheet or specify sheet name/index">
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <button type="button" class="btn btn-info" id="previewBtn" disabled>Preview File</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- File Preview Section -->
+                            <div class="card mb-3" id="previewCard" style="display: none;">
+                                <div class="card-header bg-secondary text-white">
+                                    <h3 class="mb-0">File Preview (First 10 lines)</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div id="preview-loading" class="text-center" style="display: none;">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <p class="mt-2">Loading preview...</p>
+                                    </div>
+                                    <div id="preview-content">
+                                        <pre class="bg-light p-3 mb-0" style="max-height: 300px; overflow-y: auto;"></pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="d-grid gap-2">
                             <button type="submit" class="btn btn-primary">Upload & Analyze</button>
                             <a href="{% url 'home' %}" class="btn btn-outline-secondary">Cancel</a>
@@ -40,4 +108,165 @@
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const fileInput = document.querySelector('input[type="file"]');
+        const sourceTypeSelect = document.querySelector('#id_source_type');
+        const previewBtn = document.querySelector('#previewBtn');
+        const toggleOptions = document.querySelector('#toggleOptions');
+        const advancedOptions = document.querySelector('#advancedOptions');
+        const delimiterOptions = document.querySelector('#delimiterOptions');
+        const excelOptions = document.querySelector('#excelOptions');
+        const previewCard = document.querySelector('#previewCard');
+
+        // Toggle advanced options
+        toggleOptions.addEventListener('click', function() {
+            if (advancedOptions.style.display === 'none') {
+                advancedOptions.style.display = 'block';
+                toggleOptions.textContent = 'Hide Advanced Options';
+            } else {
+                advancedOptions.style.display = 'none';
+                toggleOptions.textContent = 'Show Advanced Options';
+            }
+        });
+
+        // Show relevant options based on file type
+        sourceTypeSelect.addEventListener('change', function() {
+            updateOptionsVisibility(this.value);
+        });
+
+        // Enable preview button when file is selected
+        fileInput.addEventListener('change', function() {
+            previewBtn.disabled = !this.files.length;
+
+            // Try to auto-detect file type from extension
+            if (this.files.length > 0) {
+                const fileName = this.files[0].name.toLowerCase();
+                if (fileName.endsWith('.csv')) {
+                    sourceTypeSelect.value = 'csv';
+                } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                    sourceTypeSelect.value = 'excel';
+                } else if (fileName.endsWith('.json')) {
+                    sourceTypeSelect.value = 'json';
+                }
+
+                // Update options visibility based on detected type
+                updateOptionsVisibility(sourceTypeSelect.value);
+            }
+        });
+
+        // Show file preview when button is clicked
+        previewBtn.addEventListener('click', function() {
+            if (!fileInput.files.length) return;
+
+            const file = fileInput.files[0];
+            const sourceType = sourceTypeSelect.value;
+            const encoding = document.querySelector('#encoding').value;
+            let delimiter = '';
+
+            if (sourceType === 'csv') {
+                const delimiterPreset = document.querySelector('#delimiter_preset').value;
+                if (delimiterPreset === 'comma') delimiter = ',';
+                else if (delimiterPreset === 'tab') delimiter = 'tab';
+                else if (delimiterPreset === 'semicolon') delimiter = ';';
+                else if (delimiterPreset === 'pipe') delimiter = '|';
+                else if (delimiterPreset === 'custom') {
+                    delimiter = document.querySelector('#delimiter_custom').value || ',';
+                }
+            }
+
+            let sheetName = '';
+            if (sourceType === 'excel') {
+                sheetName = document.querySelector('#sheet_name').value || '';
+            }
+
+            // Show loading and preview card
+            previewCard.style.display = 'block';
+            document.querySelector('#preview-loading').style.display = 'block';
+            document.querySelector('#preview-content').style.display = 'none';
+
+            // Read the file contents
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                const content = e.target.result;
+                let previewText = '';
+
+                // Basic preview processing
+                if (sourceType === 'csv' || sourceType === 'other') {
+                    // Split by newline and take first 10 lines
+                    previewText = content.split('\n').slice(0, 10).join('\n');
+                } else if (sourceType === 'json') {
+                                            try {
+                        // Try to parse and format JSON
+                        const jsonData = JSON.parse(content);
+                        previewText = JSON.stringify(jsonData, null, 2);
+                        // Limit length for display
+                        if (previewText.length > 2000) {
+                            previewText = previewText.substring(0, 2000) + "...\n[truncated]";
+                        }
+                    } catch (e) {
+                        previewText = "Error parsing JSON: " + e.message;
+                    }
+                } else if (sourceType === 'excel') {
+                    previewText = "Excel preview is only available after upload";
+                }
+
+                // Update preview element
+                const previewElement = document.querySelector('#preview-content pre');
+                previewElement.textContent = previewText;
+
+                // Hide loading, show content
+                document.querySelector('#preview-loading').style.display = 'none';
+                document.querySelector('#preview-content').style.display = 'block';
+            };
+
+            reader.onerror = function() {
+                const previewElement = document.querySelector('#preview-content pre');
+                previewElement.textContent = 'Error reading file';
+
+                document.querySelector('#preview-loading').style.display = 'none';
+                document.querySelector('#preview-content').style.display = 'block';
+            };
+
+            if (sourceType === 'json' || sourceType === 'csv' || sourceType === 'other') {
+                reader.readAsText(file, encoding);
+            } else {
+                // For Excel, just show a message
+                const previewElement = document.querySelector('#preview-content pre');
+                previewElement.textContent = "Excel preview requires server-side processing and will be available after upload.";
+
+                document.querySelector('#preview-loading').style.display = 'none';
+                document.querySelector('#preview-content').style.display = 'block';
+            }
+        });
+
+        // Initial setup based on current selection
+        updateOptionsVisibility(sourceTypeSelect.value);
+
+        function updateOptionsVisibility(fileType) {
+            if (fileType === 'csv') {
+                delimiterOptions.style.display = 'flex';
+                excelOptions.style.display = 'none';
+            } else if (fileType === 'excel') {
+                delimiterOptions.style.display = 'none';
+                excelOptions.style.display = 'block';
+            } else {
+                delimiterOptions.style.display = 'none';
+                excelOptions.style.display = 'none';
+            }
+        }
+    });
+
+    function updateCustomDelimiter(value) {
+        const customInput = document.getElementById('delimiter_custom');
+        if (value === 'custom') {
+            customInput.style.display = 'block';
+            customInput.focus();
+        } else {
+            customInput.style.display = 'none';
+        }
+    }
+</script>
 {% endblock %}
