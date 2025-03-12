@@ -10,18 +10,7 @@
             <div class="badge bg-primary">{{ datasource.get_source_type_display }}</div>
             <div class="badge bg-secondary">{{ datasource.canonical_name }} v{{ datasource.schema_version }}</div>
 
-            {% if schema %}
-            <div class="badge bg-info text-dark">{{ schema.row_count }} rows</div>
-            {% endif %}
-        </div>
-    </div>
 
-<!--    {% if not schema %}-->
-<!--    <div class="alert alert-warning">-->
-<!--        No schema information found for this data source.-->
-<!--    </div>-->
-<!--    {% else %}-->
-    <!-- Updates for  -->
     {% if not schema %}
     <div class="alert alert-warning">
         No schema information found for this data source.
@@ -82,63 +71,12 @@
             </form>
         </div>
     </div>
-<!--    <div class="card mb-4">-->
-<!--        <div class="card-header bg-primary text-white">-->
-<!--            <h3 class="mb-0">Retry Schema Detection</h3>-->
-<!--        </div>-->
-<!--        <div class="card-body">-->
-<!--            <form method="post" action="{% url 'retry_detection' datasource.pk %}">-->
-<!--                {% csrf_token %}-->
-<!--                <div class="row mb-3">-->
-<!--                    <div class="col-md-6">-->
-<!--                        <label for="file_type" class="form-label">File Type</label>-->
-<!--                        <select name="file_type" id="file_type" class="form-select" onchange="toggleDelimiterOptions(this.value)">-->
-<!--                            <option value="csv">CSV</option>-->
-<!--                            <option value="excel">Excel</option>-->
-<!--                            <option value="json">JSON</option>-->
-<!--                            <option value="other">Other</option>-->
-<!--                        </select>-->
-<!--                    </div>-->
 
-<!--                    <div class="col-md-6" id="delimiter_options">-->
-<!--                        <label for="delimiter" class="form-label">CSV Delimiter</label>-->
-<!--                        <div class="input-group">-->
-<!--                            <select name="delimiter_preset" id="delimiter_preset" class="form-select" onchange="updateCustomDelimiter(this.value)">-->
-<!--                                <option value="comma">Comma (,)</option>-->
-<!--                                <option value="tab">Tab</option>-->
-<!--                                <option value="semicolon">Semicolon (;)</option>-->
-<!--                                <option value="pipe">Pipe (|)</option>-->
-<!--                                <option value="custom">Custom...</option>-->
-<!--                            </select>-->
-<!--                            <input type="text" name="delimiter_custom" id="delimiter_custom" class="form-control"-->
-<!--                                   placeholder="Custom delimiter" style="display: none;" maxlength="1">-->
-<!--                        </div>-->
-<!--                    </div>-->
-<!--                </div>-->
-
-<!--                <div class="mb-3" id="encoding_options">-->
-<!--                    <label for="encoding" class="form-label">File Encoding</label>-->
-<!--                    <select name="encoding" id="encoding" class="form-select">-->
-<!--                        <option value="utf-8">UTF-8</option>-->
-<!--                        <option value="latin-1">Latin-1</option>-->
-<!--                        <option value="iso-8859-1">ISO-8859-1</option>-->
-<!--                        <option value="cp1252">Windows-1252</option>-->
-<!--                    </select>-->
-<!--                </div>-->
-
-<!--                <div class="mb-3" id="excel_options" style="display: none;">-->
-<!--                    <label for="sheet_name" class="form-label">Excel Sheet Name/Index</label>-->
-<!--                    <input type="text" name="sheet_name" id="sheet_name" class="form-control"-->
-<!--                           placeholder="Leave blank for first sheet or specify sheet name/index">-->
-<!--                </div>-->
-
-<!--                <div class="d-grid">-->
-<!--                    <button type="submit" class="btn btn-primary">Retry Detection</button>-->
-<!--                </div>-->
-<!--            </form>-->
-<!--        </div>-->
-<!--    </div>-->
-
+    {% else %}
+            <div class="badge bg-info text-dark">{{ schema.row_count }} rows</div>
+            {% endif %}
+        </div>
+    </div>
     <script>
         // Run this when the page loads to ensure proper initial state
         document.addEventListener('DOMContentLoaded', function() {
@@ -174,35 +112,19 @@
             }
         }
     </script>
-    {% else %}
-    <!-- Existing template content for when schema is found -->
-    {% endif %}
 
+    <div class="mb-4">
+        <form method="post" action="{% url 'reprocess_file' datasource.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-warning">
+                {% if schema %}Re-analyze and Create New Version{% else %}Re-attempt Analysis{% endif %}
+            </button>
+        </form>
+    </div>
 
 
     <!-- Schema Details -->
     <div class="row mb-4">
-<!--        <div class="col">-->
-<!--            <h1>{{ datasource.original_filename }}</h1>-->
-<!--            <p class="text-muted">Uploaded on {{ datasource.upload_date|date:"F d, Y, H:i" }}</p>-->
-<!--            <div class="badge bg-primary">{{ datasource.get_source_type_display }}</div>-->
-<!--            <div class="badge bg-secondary">{{ datasource.canonical_name }} v{{ datasource.schema_version }}</div>-->
-
-<!--            {% if schema %}-->
-<!--            <div class="badge bg-info text-dark">{{ schema.row_count }} rows</div>-->
-<!--            {% endif %}-->
-
-<!--            &lt;!&ndash; Add this button &ndash;&gt;-->
-<!--            <div class="mt-3">-->
-<!--                <form method="post" action="{% url 'reprocess_file' datasource.pk %}">-->
-<!--                    {% csrf_token %}-->
-<!--                    <button type="submit" class="btn btn-warning">-->
-<!--                        {% if schema %}Re-analyze and Create New Version{% else %}Re-attempt Analysis{% endif %}-->
-<!--                    </button>-->
-<!--                </form>-->
-<!--            </div>-->
-<!--        </div>-->
-
         <div class="col">
             <div class="card">
                 <div class="card-header bg-primary text-white">
@@ -236,14 +158,6 @@
                         </table>
                     </div>
                 </div>
-            </div>
-            <div class="mt-3">
-                <form method="post" action="{% url 'reprocess_file' datasource.pk %}">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-warning">
-                        {% if schema %}Re-analyze and Create New Version{% else %}Re-attempt Analysis{% endif %}
-                    </button>
-                </form>
             </div>
 
         </div>
@@ -412,6 +326,5 @@
     </div>
     {% endif %}
 
-    {% endif %}
 </div>
 {% endblock %}
