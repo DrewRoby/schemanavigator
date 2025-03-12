@@ -263,7 +263,8 @@
             tableHead.appendChild(headerRow);
 
             // Create body rows (skip first row which is headers)
-            const dataRows = rows.slice(1);
+            // Only use up to 9 data rows (10 total with header)
+            const dataRows = rows.slice(1, 10);
             dataRows.forEach(rowText => {
                 const rowData = parseCSVRow(rowText, actualDelimiter);
 
@@ -286,7 +287,9 @@
                 });
                 tableHead.appendChild(headerRow);
 
-                data.table_data.rows.forEach(rowData => {
+                // Ensure we only show up to 9 data rows (10 total rows with header)
+                const rows = data.table_data.rows.slice(0, 9);
+                rows.forEach(rowData => {
                     const tr = document.createElement('tr');
                     rowData.forEach(cell => {
                         const td = document.createElement('td');
@@ -330,7 +333,6 @@
         cells.push(currentCell);
 
         return cells;
-    }
     }
 </script>
 {% endblock %}

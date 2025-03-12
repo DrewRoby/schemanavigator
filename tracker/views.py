@@ -99,7 +99,7 @@ def upload(request):
     else:
         form = DataSourceUploadForm()
 
-    return render(request, 'tracker/upload_modified.html', {
+    return render(request, 'tracker/upload.html', {
         'form': form,
         'title': 'Upload Data Source'
     })
@@ -513,10 +513,10 @@ def file_preview(request, pk):
                 df = pd.read_excel(file_path, sheet_name=sheet_name, nrows=10)
                 preview_text = df.to_string(index=False)
 
-                # Also provide table data
+                # Also provide table data - strictly limit to 10 rows total (including header)
                 response_data['table_data'] = {
                     'headers': df.columns.tolist(),
-                    'rows': df.values.tolist()
+                    'rows': df.head(9).values.tolist()  # 9 data rows + header = 10 total rows
                 }
             except Exception as e:
                 preview_text = f"Error reading Excel file: {str(e)}"
@@ -538,7 +538,7 @@ def file_preview(request, pk):
                             df = pd.DataFrame(data[:10])  # Limit to 10 rows
                             response_data['table_data'] = {
                                 'headers': df.columns.tolist(),
-                                'rows': df.values.tolist()
+                                'rows': df.head(9).values.tolist()  # 9 data rows + header = 10 total rows
                             }
                         except Exception as json_df_e:
                             print(f"Error converting JSON to DataFrame: {str(json_df_e)}")
@@ -686,6 +686,7 @@ def reprocess_file(request, pk):
 
     # Redirect back to the datasource detail
     return redirect('datasource_detail', pk=datasource.pk)
+
 def delete_datasource(request, pk):
     """Delete a datasource and its associated schema"""
     datasource = get_object_or_404(DataSource, pk=pk)

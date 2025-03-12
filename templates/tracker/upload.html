@@ -343,7 +343,8 @@
             tableHead.appendChild(headerRow);
 
             // Create body rows (skip first row which is headers)
-            const dataRows = rows.slice(1);
+            // Only use up to 9 data rows (10 total with header)
+            const dataRows = rows.slice(1, 10);
             dataRows.forEach(rowText => {
                 const rowData = parseCSVRow(rowText, delimiter);
 
@@ -374,8 +375,8 @@
                     });
                     tableHead.appendChild(headerRow);
 
-                    // Create rows
-                    jsonData.slice(0, 10).forEach(item => {
+                    // Create rows - limit to first 9 data rows (10 total including header)
+                    jsonData.slice(0, 9).forEach(item => {
                         const tr = document.createElement('tr');
                         [...keys].forEach(key => {
                             const td = document.createElement('td');
