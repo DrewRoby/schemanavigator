@@ -29,83 +29,80 @@ def upload(request):
             datasource.original_filename = request.FILES['file'].name
             datasource.save()
 
-            # Process the file to detect schema
-            process_file(datasource)
+            # Check for similar existing files to avoid duplication
+            similar_sources = DataSource.objects.filter(
+                original_filename=datasource.original_filename,
+                canonical_name=datasource.canonical_name,
+                source_type=datasource.source_type
+            ).exclude(pk=datasource.pk)
 
-            messages.success(request, f'File "{datasource.original_filename}" successfully uploaded and schema detected!')
-            return redirect('datasource_detail', pk=datasource.pk)
-    else:
-        form = DataSourceUploadForm()
+            if similar_sources.exists():
+                # Use the most recent similar source
+                similar_source = similar_sources.order_by('-upload_date').first()
+                messages.info(request, f'Using existing source "{similar_source.original_filename}" '
+                                       f'(v{similar_source.schema_version}) instead of creating a duplicate')
 
-    return render(request, 'tracker/upload.html', {
-        'form': form,
-        'title': 'Upload Data Source'
-    })
+                # Delete the new datasource since we're using an existing one
+                datasource.delete()
+                return redirect('datasource_detail', pk=similar_source.pk)
 
-def file_preview(request, pk):
-    """Get a preview of the file content with specified encoding and options"""
-    datasource = get_object_or_404(DataSource, pk=pk)
+            # Get additional processing options
+            file_type = datasource.source_type
 
-    # Get parameters from request
-    file_type = request.GET.get('file_type', datasource.source_type)
-    encoding = request.GET.get('encoding', 'utf-8')
-    delimiter = request.GET.get('delimiter', ',')
-    sheet_name = request.GET.get('sheet_name', 0)
+            # Process the file based on the type and options
+            success = False
 
-    # Handle tab delimiter special case
-    if delimiter == 'tab':
-        delimiter = '\t'
+            if file_type == 'csv':
+                delimiter_preset = request.POST.get('delimiter_preset', 'comma')
+                delimiter = ','  # Default
 
-    preview_text = "Unable to generate preview"
+                if delimiter_preset == 'tab':
+                    delimiter = '\t'
+                elif delimiter_preset == 'semicolon':
+                    delimiter = ';'
+                elif delimiter_preset == 'pipe':
+                    delimiter = '|'
+                elif delimiter_preset == 'custom':
+                    custom_delimiter = request.POST.get('delimiter_custom', '')
+                    if custom_delimiter:
+                        delimiter = custom_delimiter
 
-    try:
-        file_path = datasource.file.path
+                encoding = request.POST.get('encoding', 'utf-8')
+                success = process_csv_file(datasource, delimiter=delimiter, encoding=encoding)
 
-        if file_type == 'csv':
-            # Read as text file for preview
-            with open(file_path, 'r', encoding=encoding) as f:
-                lines = [line.strip() for line in f.readlines()[:10]]
-                preview_text = '\n'.join(lines)
-
-        elif file_type == 'excel':
-            # Use pandas to read Excel file
-            try:
-                # Convert sheet_name to int if it's a digit
+            elif file_type == 'excel':
+                sheet_name = request.POST.get('sheet_name', '')
+                # If sheet_name is a number, convert to int
                 if sheet_name and sheet_name.isdigit():
                     sheet_name = int(sheet_name)
                 # If empty, set to 0 (first sheet)
                 elif not sheet_name:
                     sheet_name = 0
 
-                df = pd.read_excel(file_path, sheet_name=sheet_name, nrows=10)
-                preview_text = df.to_string(index=False)
-            except Exception as e:
-                preview_text = f"Error reading Excel file: {str(e)}"
+                success = process_excel_file(datasource, sheet_name=sheet_name)
 
-        elif file_type == 'json':
-            # Read JSON and format nicely
-            try:
-                with open(file_path, 'r', encoding=encoding) as f:
-                    data = json.load(f)
-                    # Format JSON with indentation for readability
-                    preview_text = json.dumps(data, indent=2)
-                    # Limit to reasonable size for preview
-                    if len(preview_text) > 2000:
-                        preview_text = preview_text[:2000] + "...\n[truncated]"
-            except Exception as e:
-                preview_text = f"Error reading JSON file: {str(e)}"
+            elif file_type == 'json':
+                encoding = request.POST.get('encoding', 'utf-8')
+                success = process_json_file(datasource, encoding=encoding)
 
-        else:
-            # Generic text preview
-            with open(file_path, 'r', encoding=encoding) as f:
-                lines = [line.strip() for line in f.readlines()[:10]]
-                preview_text = '\n'.join(lines)
+            else:
+                # Default processing
+                success = process_file(datasource)
 
-    except Exception as e:
-        preview_text = f"Error generating preview: {str(e)}"
+            if success:
+                messages.success(request, f'File "{datasource.original_filename}" successfully uploaded and schema detected!')
+                return redirect('datasource_detail', pk=datasource.pk)
+            else:
+                messages.error(request, f'Error processing file "{datasource.original_filename}"')
+                # Clean up the datasource since we couldn't process it
+                datasource.delete()
+    else:
+        form = DataSourceUploadForm()
 
-    return JsonResponse({'preview': preview_text})
-
+    return render(request, 'tracker/upload_modified.html', {
+        'form': form,
+        'title': 'Upload Data Source'
+    })
 def process_file(datasource):
     """
     Process the uploaded file, detect schema, and identify primary keys
@@ -128,134 +125,6 @@ def process_file(datasource):
         # Log the error and continue
         print(f"Error processing file: {e}")
         return False
-
-def reanalyze_file(request, pk):
-    """Show file preview and options for re-analyzing a file"""
-    datasource = get_object_or_404(DataSource, pk=pk)
-
-    return render(request, 'tracker/file_preview.html', {
-        'datasource': datasource,
-        'title': f'Re-analyze: {datasource.original_filename}'
-    })
-
-def reprocess_file(request, pk):
-    """Re-process a file with specified options"""
-    datasource = get_object_or_404(DataSource, pk=pk)
-
-    if request.method == 'POST':
-        # Get form parameters
-        file_type = request.POST.get('file_type')
-        create_new_version = request.POST.get('create_new_version') == 'on'
-
-        # Check if a schema already exists for this datasource
-        try:
-            existing_schema = SchemaDefinition.objects.get(data_source=datasource)
-            schema_exists = True
-        except SchemaDefinition.DoesNotExist:
-            schema_exists = False
-
-        # Determine if we need a new version
-        if schema_exists and create_new_version:
-            # First check if we have an identical datasource already
-            similar_sources = DataSource.objects.filter(
-                original_filename=datasource.original_filename,
-                canonical_name=datasource.canonical_name,
-                source_type=file_type
-            ).exclude(pk=datasource.pk)
-
-            # If we found similar sources, don't create a duplicate
-            if similar_sources.exists():
-                # Use the most recent similar source
-                similar_source = similar_sources.order_by('-upload_date').first()
-                messages.info(request, f'Using existing source "{similar_source.original_filename}" '
-                                       f'(v{similar_source.schema_version}) instead of creating a duplicate')
-                return redirect('datasource_detail', pk=similar_source.pk)
-
-            # Create a new version of the datasource
-            new_datasource = DataSource.objects.create(
-                original_filename=datasource.original_filename,
-                file=datasource.file,
-                canonical_name=datasource.canonical_name,
-                schema_version=datasource.schema_version + 1,
-                source_type=file_type
-            )
-
-            # Store the target datasource for processing
-            target_datasource = new_datasource
-        else:
-            # Update the current datasource's source type
-            datasource.source_type = file_type
-            datasource.save()
-
-            # Use the current datasource for processing
-            target_datasource = datasource
-
-            # If a schema exists, remove it for reprocessing
-            if schema_exists:
-                # Remove related primary key candidates
-                PrimaryKeyCandidate.objects.filter(schema=existing_schema).delete()
-
-                # Remove the schema itself
-                existing_schema.delete()
-
-        # Process based on file type
-        if file_type == 'csv':
-            # Get delimiter
-            delimiter_preset = request.POST.get('delimiter_preset')
-            delimiter = ','  # Default
-
-            if delimiter_preset == 'tab':
-                delimiter = '\t'
-            elif delimiter_preset == 'semicolon':
-                delimiter = ';'
-            elif delimiter_preset == 'pipe':
-                delimiter = '|'
-            elif delimiter_preset == 'custom':
-                custom_delimiter = request.POST.get('delimiter_custom')
-                if custom_delimiter:
-                    delimiter = custom_delimiter
-
-            encoding = request.POST.get('encoding', 'utf-8')
-
-            # Call function to process CSV with specific delimiter
-            success = process_csv_file(target_datasource, delimiter=delimiter, encoding=encoding)
-
-        elif file_type == 'excel':
-            sheet_name = request.POST.get('sheet_name')
-            # If sheet_name is a number, convert to int
-            if sheet_name and sheet_name.isdigit():
-                sheet_name = int(sheet_name)
-            # If empty, set to 0 (first sheet)
-            elif not sheet_name:
-                sheet_name = 0
-
-            success = process_excel_file(target_datasource, sheet_name=sheet_name)
-
-        elif file_type == 'json':
-            encoding = request.POST.get('encoding', 'utf-8')
-            success = process_json_file(target_datasource, encoding=encoding)
-
-        else:
-            # Generic processing
-            success = process_file(target_datasource)
-
-        if success:
-            if target_datasource.pk != datasource.pk:
-                messages.success(request, f'Created new schema version (v{target_datasource.schema_version}) '
-                                          f'for {target_datasource.original_filename}')
-            else:
-                messages.success(request, f'Successfully re-analyzed {target_datasource.original_filename}')
-            return redirect('datasource_detail', pk=target_datasource.pk)
-        else:
-            if target_datasource.pk != datasource.pk:
-                # If processing failed and we created a new datasource, delete it
-                target_datasource.delete()
-                messages.error(request, f'Failed to create new schema version for {datasource.original_filename}')
-            else:
-                messages.error(request, f'Failed to re-analyze {datasource.original_filename}')
-
-    # Redirect back to the datasource detail
-    return redirect('datasource_detail', pk=datasource.pk)
 
 def find_related_sources(datasource):
     """
@@ -590,11 +459,124 @@ def create_schema_from_dataframe(df, datasource):
         print(f"Error creating schema from DataFrame: {e}")
         return False
 
+def file_preview(request, pk):
+    """Get a preview of the file content with specified encoding and options"""
+    datasource = get_object_or_404(DataSource, pk=pk)
+
+    # Get parameters from request
+    file_type = request.GET.get('file_type', datasource.source_type)
+    encoding = request.GET.get('encoding', 'utf-8')
+    delimiter = request.GET.get('delimiter', ',')
+    sheet_name = request.GET.get('sheet_name', 0)
+
+    # Handle tab delimiter special case
+    if delimiter == 'tab':
+        delimiter = '\t'
+
+    preview_text = "Unable to generate preview"
+    response_data = {'preview': preview_text}
+
+    try:
+        file_path = datasource.file.path
+
+        if file_type == 'csv':
+            # Read as text file for preview
+            with open(file_path, 'r', encoding=encoding) as f:
+                lines = [line.strip() for line in f.readlines()[:10]]
+                preview_text = '\n'.join(lines)
+
+            # Also provide the delimiter used for the client-side parser
+            response_data['delimiter'] = delimiter
+
+            # Try to also parse as a DataFrame for table data
+            try:
+                df = pd.read_csv(file_path, delimiter=delimiter, encoding=encoding, nrows=10, engine='python')
+                # Convert DataFrame to a simple format for the table view
+                response_data['table_data'] = {
+                    'headers': df.columns.tolist(),
+                    'rows': df.values.tolist()
+                }
+            except Exception as csv_e:
+                print(f"Error parsing CSV as DataFrame: {str(csv_e)}")
+                # If DataFrame parsing fails, the raw preview will still be available
+
+        elif file_type == 'excel':
+            # Use pandas to read Excel file
+            try:
+                # Convert sheet_name to int if it's a digit
+                if sheet_name and sheet_name.isdigit():
+                    sheet_name = int(sheet_name)
+                # If empty, set to 0 (first sheet)
+                elif not sheet_name:
+                    sheet_name = 0
+
+                df = pd.read_excel(file_path, sheet_name=sheet_name, nrows=10)
+                preview_text = df.to_string(index=False)
+
+                # Also provide table data
+                response_data['table_data'] = {
+                    'headers': df.columns.tolist(),
+                    'rows': df.values.tolist()
+                }
+            except Exception as e:
+                preview_text = f"Error reading Excel file: {str(e)}"
+
+        elif file_type == 'json':
+            # Read JSON and format nicely
+            try:
+                with open(file_path, 'r', encoding=encoding) as f:
+                    data = json.load(f)
+                    # Format JSON with indentation for readability
+                    preview_text = json.dumps(data, indent=2)
+                    # Limit to reasonable size for preview
+                    if len(preview_text) > 2000:
+                        preview_text = preview_text[:2000] + "...\n[truncated]"
+
+                    # Try to convert to DataFrame if it's a list of objects
+                    if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
+                        try:
+                            df = pd.DataFrame(data[:10])  # Limit to 10 rows
+                            response_data['table_data'] = {
+                                'headers': df.columns.tolist(),
+                                'rows': df.values.tolist()
+                            }
+                        except Exception as json_df_e:
+                            print(f"Error converting JSON to DataFrame: {str(json_df_e)}")
+            except Exception as e:
+                preview_text = f"Error reading JSON file: {str(e)}"
+
+        else:
+            # Generic text preview
+            with open(file_path, 'r', encoding=encoding) as f:
+                lines = [line.strip() for line in f.readlines()[:10]]
+                preview_text = '\n'.join(lines)
+
+    except Exception as e:
+        preview_text = f"Error generating preview: {str(e)}"
+
+    # Update the preview text in the response
+    response_data['preview'] = preview_text
+
+    return JsonResponse(response_data)
+
+def reanalyze_file(request, pk):
+    """Show file preview and options for re-analyzing a file"""
+    datasource = get_object_or_404(DataSource, pk=pk)
+
+    return render(request, 'tracker/file_preview.html', {
+        'datasource': datasource,
+        'title': f'Re-analyze: {datasource.original_filename}'
+    })
+
 def reprocess_file(request, pk):
-    """Re-process a file to create a new schema version or attempt detection again"""
+    """Re-process a file with specified options"""
     datasource = get_object_or_404(DataSource, pk=pk)
 
     if request.method == 'POST':
+        # Get form parameters
+        file_type = request.POST.get('file_type')
+        create_new_version = request.POST.get('create_new_version') == 'on'
+
         # Check if a schema already exists for this datasource
         try:
             existing_schema = SchemaDefinition.objects.get(data_source=datasource)
@@ -602,37 +584,108 @@ def reprocess_file(request, pk):
         except SchemaDefinition.DoesNotExist:
             schema_exists = False
 
-        if schema_exists:
+        # Determine if we need a new version
+        if schema_exists and create_new_version:
+            # First check if we have an identical datasource already
+            similar_sources = DataSource.objects.filter(
+                original_filename=datasource.original_filename,
+                canonical_name=datasource.canonical_name,
+                source_type=file_type
+            ).exclude(pk=datasource.pk)
+
+            # If we found similar sources, don't create a duplicate
+            if similar_sources.exists():
+                # Use the most recent similar source
+                similar_source = similar_sources.order_by('-upload_date').first()
+                messages.info(request, f'Using existing source "{similar_source.original_filename}" '
+                                       f'(v{similar_source.schema_version}) instead of creating a duplicate')
+                return redirect('datasource_detail', pk=similar_source.pk)
+
             # Create a new version of the datasource
             new_datasource = DataSource.objects.create(
                 original_filename=datasource.original_filename,
                 file=datasource.file,
                 canonical_name=datasource.canonical_name,
                 schema_version=datasource.schema_version + 1,
-                source_type=datasource.source_type
+                source_type=file_type
             )
 
-            # Process the new datasource
-            success = process_file(new_datasource)
-
-            if success:
-                messages.success(request, f'Created new schema version (v{new_datasource.schema_version}) for {new_datasource.original_filename}')
-                return redirect('datasource_detail', pk=new_datasource.pk)
-            else:
-                # If processing failed, delete the new datasource to avoid duplicates
-                new_datasource.delete()
-                messages.error(request, f'Failed to create new schema version for {datasource.original_filename}')
+            # Store the target datasource for processing
+            target_datasource = new_datasource
         else:
-            # Simply try to process the file again
-            success = process_file(datasource)
+            # Update the current datasource's source type
+            datasource.source_type = file_type
+            datasource.save()
 
-            if success:
-                messages.success(request, f'Successfully analyzed {datasource.original_filename}')
+            # Use the current datasource for processing
+            target_datasource = datasource
+
+            # If a schema exists, remove it for reprocessing
+            if schema_exists:
+                # Remove related primary key candidates
+                PrimaryKeyCandidate.objects.filter(schema=existing_schema).delete()
+
+                # Remove the schema itself
+                existing_schema.delete()
+
+        # Process based on file type
+        if file_type == 'csv':
+            # Get delimiter
+            delimiter_preset = request.POST.get('delimiter_preset')
+            delimiter = ','  # Default
+
+            if delimiter_preset == 'tab':
+                delimiter = '\t'
+            elif delimiter_preset == 'semicolon':
+                delimiter = ';'
+            elif delimiter_preset == 'pipe':
+                delimiter = '|'
+            elif delimiter_preset == 'custom':
+                custom_delimiter = request.POST.get('delimiter_custom')
+                if custom_delimiter:
+                    delimiter = custom_delimiter
+
+            encoding = request.POST.get('encoding', 'utf-8')
+
+            # Call function to process CSV with specific delimiter
+            success = process_csv_file(target_datasource, delimiter=delimiter, encoding=encoding)
+
+        elif file_type == 'excel':
+            sheet_name = request.POST.get('sheet_name')
+            # If sheet_name is a number, convert to int
+            if sheet_name and sheet_name.isdigit():
+                sheet_name = int(sheet_name)
+            # If empty, set to 0 (first sheet)
+            elif not sheet_name:
+                sheet_name = 0
+
+            success = process_excel_file(target_datasource, sheet_name=sheet_name)
+
+        elif file_type == 'json':
+            encoding = request.POST.get('encoding', 'utf-8')
+            success = process_json_file(target_datasource, encoding=encoding)
+
+        else:
+            # Generic processing
+            success = process_file(target_datasource)
+
+        if success:
+            if target_datasource.pk != datasource.pk:
+                messages.success(request, f'Created new schema version (v{target_datasource.schema_version}) '
+                                          f'for {target_datasource.original_filename}')
             else:
-                messages.error(request, f'Failed to analyze {datasource.original_filename}')
+                messages.success(request, f'Successfully re-analyzed {target_datasource.original_filename}')
+            return redirect('datasource_detail', pk=target_datasource.pk)
+        else:
+            if target_datasource.pk != datasource.pk:
+                # If processing failed and we created a new datasource, delete it
+                target_datasource.delete()
+                messages.error(request, f'Failed to create new schema version for {datasource.original_filename}')
+            else:
+                messages.error(request, f'Failed to re-analyze {datasource.original_filename}')
 
+    # Redirect back to the datasource detail
     return redirect('datasource_detail', pk=datasource.pk)
-
 def delete_datasource(request, pk):
     """Delete a datasource and its associated schema"""
     datasource = get_object_or_404(DataSource, pk=pk)
