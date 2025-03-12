@@ -65,76 +65,6 @@ def process_file(datasource):
         print(f"Error processing file: {e}")
         return False
 
-# def process_file(datasource):
-#     """
-#     Process the uploaded file, detect schema, and identify primary keys
-#     """
-#     file_path = datasource.file.path
-#     _, file_extension = os.path.splitext(file_path)
-#
-#     # Read the file based on its type
-#     try:
-#         if file_extension.lower() in ['.xlsx', '.xls']:
-#             df = pd.read_excel(file_path)
-#         elif file_extension.lower() == '.csv':
-#             df = pd.read_csv(file_path)
-#         else:
-#             # Unsupported file type
-#             return
-#
-#         # Detect schema
-#         column_definitions = {}
-#         for column in df.columns:
-#             column_type = str(df[column].dtype)
-#
-#             # Check for categorical data
-#             if column_type == 'object' and df[column].nunique() < len(df) * 0.5:
-#                 column_type = 'category'
-#
-#             column_definitions[column] = {
-#                 'type': column_type,
-#                 'sample_values': df[column].dropna().head(5).tolist()
-#             }
-#
-#
-#         # And when creating the schema:
-#         schema = SchemaDefinition.objects.create(
-#             data_source=datasource,
-#             column_definitions=json.loads(json.dumps(column_definitions, cls=CustomJSONEncoder)),
-#             row_count=len(df)
-#         )
-#
-#         # Identify potential primary keys
-#         for column in df.columns:
-#             # Skip columns with NaN values
-#             if df[column].isna().any():
-#                 continue
-#
-#             # Calculate uniqueness ratio
-#             uniqueness = df[column].nunique() / len(df)
-#
-#             # Only consider columns with high uniqueness (>80%)
-#             if uniqueness > 0.8:
-#                 PrimaryKeyCandidate.objects.create(
-#                     schema=schema,
-#                     column_name=column,
-#                     uniqueness_ratio=uniqueness,
-#                     is_confirmed=False  # Needs user confirmation
-#                 )
-#
-#         # Check for relationships with existing sources
-#         find_related_sources(datasource)
-#
-#         # Record this as the initial version
-#         SchemaChange.objects.create(
-#             source=datasource,
-#             change_type='initial',
-#             details={'columns': list(column_definitions.keys())}
-#         )
-#
-#     except Exception as e:
-#         # Log the error and continue
-#         print(f"Error processing file: {e}")
 
 def find_related_sources(datasource):
     """
@@ -335,11 +265,25 @@ def process_csv_file(datasource, delimiter=',', encoding='utf-8'):
     """Process a CSV file with specific delimiter and encoding"""
     try:
         file_path = datasource.file.path
-        df = pd.read_csv(file_path, delimiter=delimiter, encoding=encoding)
+        print(f"Processing CSV file: {file_path}")
+        print(f"Using delimiter: '{delimiter}' and encoding: {encoding}")
+
+        # Try to read with pandas
+        df = pd.read_csv(file_path, delimiter=delimiter, encoding=encoding, engine='python')
+        print(f"CSV read successful. Columns: {df.columns.tolist()}")
+        print(f"Found {len(df)} rows")
+
         return create_schema_from_dataframe(df, datasource)
     except Exception as e:
         print(f"Error processing CSV file: {e}")
-        return False
+        # Try with different engine as fallback
+        try:
+            print("Trying with C engine instead...")
+            df = pd.read_csv(file_path, delimiter=delimiter, encoding=encoding, engine='c')
+            return create_schema_from_dataframe(df, datasource)
+        except Exception as e2:
+            print(f"Second attempt failed: {e2}")
+            return False
 
 def process_excel_file(datasource, sheet_name=0):
     """Process an Excel file with specific sheet"""
