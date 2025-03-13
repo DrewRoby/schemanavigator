@@ -74,7 +74,19 @@
       <!-- File Preview Section -->
       <div class="card">
         <div class="card-header bg-secondary text-white">
-          <h3 class="mb-0">File Preview (First 10 lines)</h3>
+          <div class="d-flex justify-content-between align-items-center">
+            <h3 class="mb-0">File Preview (First 10 lines)</h3>
+            <ul class="nav nav-tabs card-header-tabs" id="previewTabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="raw-tab" data-bs-toggle="tab" data-bs-target="#raw-view"
+                        type="button" role="tab" aria-controls="raw-view" aria-selected="true">Raw</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="table-tab" data-bs-toggle="tab" data-bs-target="#table-view"
+                        type="button" role="tab" aria-controls="table-view" aria-selected="false">Table</button>
+              </li>
+            </ul>
+          </div>
         </div>
         <div class="card-body">
           <div id="preview-loading" class="text-center" style="display: none;">
@@ -84,7 +96,30 @@
             <p class="mt-2">Loading preview...</p>
           </div>
           <div id="preview-content">
-            <pre class="bg-light p-3 mb-0" style="max-height: 400px; overflow-y: auto;">{{ file_preview|default:"Click 'Preview' to see file content" }}</pre>
+            <div class="tab-content" id="previewTabContent">
+              <!-- Raw View Tab -->
+              <div class="tab-pane fade show active" id="raw-view" role="tabpanel" aria-labelledby="raw-tab">
+                <pre class="bg-light p-3 mb-0" style="max-height: 400px; overflow-y: auto;">{{ file_preview|default:"Click 'Preview' to see file content" }}</pre>
+              </div>
+
+              <!-- Table View Tab -->
+              <div class="tab-pane fade" id="table-view" role="tabpanel" aria-labelledby="table-tab">
+                <div class="table-responsive">
+                  <table class="table table-striped table-bordered" id="preview-table">
+                    <thead id="preview-table-head">
+                    <tr>
+                      <th>Loading...</th>
+                    </tr>
+                    </thead>
+                    <tbody id="preview-table-body">
+                    <tr>
+                      <td>Please click 'Preview' to see table data</td>
+                    </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -140,7 +175,7 @@
         const fileType = document.getElementById('file_type').value;
         const encoding = document.getElementById('encoding').value;
         let delimiter = '';
-        
+
         if (fileType === 'csv') {
             const delimiterPreset = document.getElementById('delimiter_preset').value;
             if (delimiterPreset === 'comma') delimiter = ',';
@@ -151,36 +186,153 @@
                 delimiter = document.getElementById('delimiter_custom').value || ',';
             }
         }
-        
+
         let sheetName = '';
         if (fileType === 'excel') {
             sheetName = document.getElementById('sheet_name').value || '';
         }
-        
+
         // Show loading
         previewContent.style.display = 'none';
         previewLoading.style.display = 'block';
-        
+
         // Make AJAX request to get preview
         fetch(`{% url 'file_preview' datasource.pk %}?file_type=${fileType}&encoding=${encoding}&delimiter=${delimiter}&sheet_name=${sheetName}`)
             .then(response => response.json())
             .then(data => {
-                const previewElement = previewContent.querySelector('pre');
+                // Update raw view
+                const previewElement = document.querySelector('#raw-view pre');
                 previewElement.textContent = data.preview;
-                
+
+                // Update table view
+                updateTableView(data, fileType, delimiter);
+
                 // Hide loading, show content
                 previewLoading.style.display = 'none';
                 previewContent.style.display = 'block';
             })
             .catch(error => {
                 console.error('Error fetching preview:', error);
-                const previewElement = previewContent.querySelector('pre');
+                const previewElement = document.querySelector('#raw-view pre');
                 previewElement.textContent = 'Error loading preview. Please try different settings.';
-                
+
+                const tableBody = document.getElementById('preview-table-body');
+                tableBody.innerHTML = '<tr><td>Error loading preview data</td></tr>';
+
                 // Hide loading, show content
                 previewLoading.style.display = 'none';
                 previewContent.style.display = 'block';
             });
+    }
+
+    function updateTableView(data, fileType, delimiter) {
+        const tableHead = document.getElementById('preview-table-head');
+        const tableBody = document.getElementById('preview-table-body');
+
+        // Clear existing table content
+        tableHead.innerHTML = '';
+        tableBody.innerHTML = '';
+
+        if (!data.preview || data.preview.trim() === '') {
+            tableBody.innerHTML = '<tr><td>No data available</td></tr>';
+            return;
+        }
+
+        if (fileType === 'csv') {
+            // Parse CSV preview into rows and columns
+            const rows = data.preview.trim().split('\n');
+
+            if (rows.length === 0) {
+                tableBody.innerHTML = '<tr><td>No data available</td></tr>';
+                return;
+            }
+
+            // Use actual delimiter from the response or fall back to the requested one
+            const actualDelimiter = data.delimiter || delimiter || ',';
+
+            // First row as headers
+            const headers = parseCSVRow(rows[0], actualDelimiter);
+
+            // Create header row
+            const headerRow = document.createElement('tr');
+            headers.forEach(header => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                headerRow.appendChild(th);
+            });
+            tableHead.appendChild(headerRow);
+
+            // Create body rows (skip first row which is headers)
+            // Only use up to 9 data rows (10 total with header)
+            const dataRows = rows.slice(1, 10);
+            dataRows.forEach(rowText => {
+                const rowData = parseCSVRow(rowText, actualDelimiter);
+
+                const tr = document.createElement('tr');
+                rowData.forEach(cell => {
+                    const td = document.createElement('td');
+                    td.textContent = cell;
+                    tr.appendChild(td);
+                });
+                tableBody.appendChild(tr);
+            });
+        } else if (fileType === 'excel' && data.table_data) {
+            // For Excel, we expect the backend to send structured table data
+            if (data.table_data.headers) {
+                const headerRow = document.createElement('tr');
+                data.table_data.headers.forEach(header => {
+                    const th = document.createElement('th');
+                    th.textContent = header;
+                    headerRow.appendChild(th);
+                });
+                tableHead.appendChild(headerRow);
+
+                // Ensure we only show up to 9 data rows (10 total rows with header)
+                const rows = data.table_data.rows.slice(0, 9);
+                rows.forEach(rowData => {
+                    const tr = document.createElement('tr');
+                    rowData.forEach(cell => {
+                        const td = document.createElement('td');
+                        td.textContent = cell;
+                        tr.appendChild(td);
+                    });
+                    tableBody.appendChild(tr);
+                });
+            } else {
+                tableBody.innerHTML = '<tr><td>No structured data available</td></tr>';
+            }
+        } else {
+            // For JSON or other formats, show a message
+            tableBody.innerHTML = '<tr><td>Table view is only available for CSV and Excel files</td></tr>';
+        }
+    }
+
+    function parseCSVRow(row, delimiter) {
+        // Simple CSV parsing - handles basic cases
+        const cells = [];
+        let inQuotes = false;
+        let currentCell = '';
+        let i = 0;
+
+        while (i < row.length) {
+            const char = row[i];
+
+            if (char === '"' && (i === 0 || row[i-1] !== '\\')) {
+                inQuotes = !inQuotes;
+            } else if (char === delimiter && !inQuotes) {
+                cells.push(currentCell);
+                currentCell = '';
+            } else {
+                currentCell += char;
+            }
+
+            i++;
+        }
+
+        // Add the last cell
+        cells.push(currentCell);
+
+        return cells;
     }
 </script>
 {% endblock %}
