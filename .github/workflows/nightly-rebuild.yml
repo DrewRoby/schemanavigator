@@ -1,0 +1,23 @@
+name: Nightly Rebuild
+
+on:
+  schedule:
+    # Run at midnight UTC
+    - cron: '0 0 * * *'
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install DigitalOcean CLI
+        run: |
+          cd ~
+          wget https://github.com/digitalocean/doctl/releases/download/v1.100.0/doctl-1.100.0-linux-amd64.tar.gz
+          tar xf doctl-1.100.0-linux-amd64.tar.gz
+          sudo mv doctl /usr/local/bin
+      
+      - name: Authenticate with DigitalOcean
+        run: doctl auth init --access-token ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+      
+      - name: Trigger App Platform Deployment
+        run: doctl apps create-deployment ${{ secrets.APP_ID }} --force-rebuild
