@@ -1,12 +1,20 @@
-schemanavigator.iml
-.idea/
+# Mine
+*schemanavigator.iml
+/.idea/
 *.env
 /media/
+*.pyc
+*__init__.py
+/static
+/staticfiles
+
+
+
+
 # Byte-compiled / optimized / DLL files
 */__pycache__/
 *.py[cod]
 *$py.class
-*.pyc
 
 # C extensions
 *.so

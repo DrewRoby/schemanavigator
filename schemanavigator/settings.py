@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     # Project apps
     'tracker',
     'api',
+    'auth_detector',
 ]
 
 MIDDLEWARE = [
