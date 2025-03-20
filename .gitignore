@@ -1,4 +1,5 @@
-*.idea/
+schemanavigator.iml
+.idea/
 *.env
 /media/
 # Byte-compiled / optimized / DLL files
