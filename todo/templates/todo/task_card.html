@@ -1,0 +1,59 @@
+<div class="task-card" id="task-{{ task.id }}" data-task-id="{{ task.id }}">
+    <div class="task-content" onclick="viewTaskDetails({{ task.id }})">
+        <h4 class="task-title">{{ task.title }}</h4>
+
+        {% if task.description %}
+        <div class="task-description">
+            {{ task.description|truncatechars:100 }}
+        </div>
+        {% endif %}
+
+        {% if task.next_step %}
+        <div class="task-next-step">
+            <i class="fas fa-arrow-right"></i> {{ task.next_step|truncatechars:50 }}
+        </div>
+        {% endif %}
+
+        <div class="task-meta">
+            <div class="task-start-date">
+                <i class="far fa-calendar"></i> Started: {{ task.start_date|date:"M d" }}
+            </div>
+
+            {% if task.due_date %}
+            <div class="task-due-date">
+                <i class="far fa-calendar-check"></i> Due: {{ task.due_date|date:"M d" }}
+            </div>
+            {% endif %}
+        </div>
+
+        {% if task.project %}
+        <div class="task-project">
+            <i class="fas fa-project-diagram"></i> {{ task.project.name }}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="task-actions">
+        <a href="{% url 'edit_task' task.id %}" class="task-action-btn" title="Edit">
+            <i class="fas fa-pencil-alt"></i>
+        </a>
+
+        {% if task.status != 'todo' %}
+        <button class="task-action-btn" title="Move to To-Do" onclick="updateTaskStatus({{ task.id }}, 'todo')">
+            <i class="fas fa-arrow-left"></i>
+        </button>
+        {% endif %}
+
+        {% if task.status != 'in_progress' %}
+        <button class="task-action-btn" title="Move to In Progress" onclick="updateTaskStatus({{ task.id }}, 'in_progress')">
+            <i class="fas fa-spinner"></i>
+        </button>
+        {% endif %}
+
+        {% if task.status != 'done' %}
+        <button class="task-action-btn" title="Mark as Done" onclick="updateTaskStatus({{ task.id }}, 'done')">
+            <i class="fas fa-check"></i>
+        </button>
+        {% endif %}
+    </div>
+</div>

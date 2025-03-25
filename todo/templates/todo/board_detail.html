@@ -1,0 +1,140 @@
+{% extends 'todo/base.html' %}
+{% load static %}
+
+{% block todo_title %}{{ board.name }}{% endblock %}
+
+{% block todo_content %}
+<div class="boards-container">
+    <div class="board-header">
+        <div>
+            <h2>{{ board.name }}</h2>
+            {% if board.description %}
+            <p class="board-description">{{ board.description }}</p>
+            {% endif %}
+        </div>
+
+        <a href="{% url 'create_task' board.id %}" class="add-task-btn">
+            <i class="fas fa-plus"></i> Add Task
+        </a>
+    </div>
+
+    <div class="board-selector">
+        <select class="board-select" id="board-selector" onchange="location = this.value;">
+            {% for b in boards %}
+            <option value="{% url 'board_detail' b.id %}" {% if b.id == board.id %}selected{% endif %}>
+                {{ b.name }}
+            </option>
+            {% endfor %}
+        </select>
+
+        <a href="{% url 'create_board' %}" class="add-board-btn">
+            <i class="fas fa-plus"></i> New Board
+        </a>
+    </div>
+
+    <div class="board-columns">
+        <!-- To-Do Column -->
+        <div class="task-column column-todo">
+            <div class="column-header">
+                <h3 class="column-title">To-Do</h3>
+                <span class="task-count">{{ todo_tasks|length }}</span>
+            </div>
+
+            <div class="task-list" id="todo-list" data-status="todo">
+                {% for task in todo_tasks %}
+                {% include 'todo/task_card.html' with task=task %}
+                {% empty %}
+                <div class="empty-column-message">No tasks yet</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- In Progress Column -->
+        <div class="task-column column-in-progress">
+            <div class="column-header">
+                <h3 class="column-title">In Progress</h3>
+                <span class="task-count">{{ in_progress_tasks|length }}</span>
+            </div>
+
+            <div class="task-list" id="in-progress-list" data-status="in_progress">
+                {% for task in in_progress_tasks %}
+                {% include 'todo/task_card.html' with task=task %}
+                {% empty %}
+                <div class="empty-column-message">No tasks in progress</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Done Column -->
+        <div class="task-column column-done">
+            <div class="column-header">
+                <h3 class="column-title">Done</h3>
+                <span class="task-count">{{ done_tasks|length }}</span>
+            </div>
+
+            <div class="task-list" id="done-list" data-status="done">
+                {% for task in done_tasks %}
+                {% include 'todo/task_card.html' with task=task %}
+                {% empty %}
+                <div class="empty-column-message">No completed tasks</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Task Quick View Modal -->
+<div class="modal" id="task-modal">
+    <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <div id="task-modal-content"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+    // Task status update functionality
+    function updateTaskStatus(taskId, newStatus) {
+        fetch(`/todo/task/${taskId}/status/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: `status=${newStatus}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            }
+        });
+    }
+
+    // Modal functionality
+    const modal = document.getElementById('task-modal');
+    const closeModal = document.querySelector('.close-modal');
+
+    closeModal.onclick = function() {
+        modal.style.display = "none";
+    }
+
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
+    }
+
+    // Quick view task details
+    function viewTaskDetails(taskId) {
+        // This would be implemented to show task details in the modal
+        // For now, we'll just redirect to the edit page
+        window.location.href = `/todo/task/${taskId}/edit/`;
+    }
+
+    // Initialize drag and drop (placeholder for future implementation)
+    // This would require additional JavaScript libraries or custom code
+</script>
+{% endblock %}

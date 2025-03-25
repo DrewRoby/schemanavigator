@@ -1,0 +1,36 @@
+<!--{% extends 'base.html' %}-->
+<!--{% load static %}-->
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'todo/css/todo-styles.css' %}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="app-header">
+        <h1>{% block todo_title %}Todo App{% endblock %}</h1>
+        <div class="app-nav">
+            <a href="{% url 'board_list' %}" class="nav-link{% if request.resolver_match.url_name == 'board_list' %} active{% endif %}">
+                <i class="fas fa-clipboard-list"></i> Boards
+            </a>
+            <a href="{% url 'project_list' %}" class="nav-link{% if request.resolver_match.url_name == 'project_list' %} active{% endif %}">
+                <i class="fas fa-project-diagram"></i> Projects
+            </a>
+        </div>
+    </div>
+
+    <div class="app-content">
+        {% block todo_content %}{% endblock %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Enable drag and drop for task cards if needed
+        // This is a placeholder for potential future drag-and-drop functionality
+    });
+</script>
+{% endblock %}

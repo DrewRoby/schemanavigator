@@ -8,5 +8,6 @@ urlpatterns = [
     path('', include('tracker.urls')),
     path('api/', include('api.urls')),
     path('auth/', include('auth_detector.urls')),
+    path('todo/', include('todo.urls')),
 ]
 

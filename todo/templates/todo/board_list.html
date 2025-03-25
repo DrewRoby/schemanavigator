@@ -1,0 +1,40 @@
+{% extends 'todo/base.html' %}
+
+{% block todo_title %}My Boards{% endblock %}
+
+{% block todo_content %}
+<div class="boards-container">
+    <div class="board-header">
+        <h2>My Boards</h2>
+        <a href="{% url 'create_board' %}" class="add-board-btn">
+            <i class="fas fa-plus"></i> New Board
+        </a>
+    </div>
+
+    {% if boards %}
+    <div class="boards-grid">
+        {% for board in boards %}
+        <div class="board-card">
+            <div class="board-card-inner">
+                <h3 class="board-name">{{ board.name }}</h3>
+                {% if board.description %}
+                <p class="board-description">{{ board.description }}</p>
+                {% endif %}
+
+                <div class="board-meta">
+                    <span class="board-created">Created: {{ board.created_at|date:"M d, Y" }}</span>
+                </div>
+
+                <a href="{% url 'board_detail' board.id %}" class="view-board-btn">View Board</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>You don't have any boards yet.</p>
+        <a href="{% url 'create_board' %}" class="add-board-btn">Create your first board</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

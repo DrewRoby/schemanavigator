@@ -1,0 +1,39 @@
+{% extends 'todo/base.html' %}
+
+{% block todo_title %}My Projects{% endblock %}
+
+{% block todo_content %}
+<div class="projects-container">
+    <div class="project-header">
+        <h2>My Projects</h2>
+        <a href="{% url 'create_project' %}" class="add-project-btn">
+            <i class="fas fa-plus"></i> New Project
+        </a>
+    </div>
+
+    {% if projects %}
+    <div class="projects-grid">
+        {% for project in projects %}
+        <div class="project-card">
+            <div class="project-card-inner">
+                <h3 class="project-name">{{ project.name }}</h3>
+                {% if project.description %}
+                <p class="project-description">{{ project.description }}</p>
+                {% endif %}
+
+                <div class="project-meta">
+                    <span class="project-created">Created: {{ project.created_at|date:"M d, Y" }}</span>
+                    <span class="project-tasks-count">Tasks: {{ project.tasks.count }}</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>You don't have any projects yet.</p>
+        <a href="{% url 'create_project' %}" class="add-project-btn">Create your first project</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

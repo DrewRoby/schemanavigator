@@ -30,7 +30,7 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['schemanavigator-app-nxf6i.ondigitalocean.app']
+ALLOWED_HOSTS = ['schemanavigator-app-nxf6i.ondigitalocean.app', '127.0.0.1', 'localhost']
 
 
 # Application definition
@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'tracker',
     'api',
     'auth_detector',
+    'todo'
 ]
 
 MIDDLEWARE = [
@@ -156,7 +157,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOWED_ORIGINS = [
     "https://drewroby.github.io",
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
-
+# CORS_ALLOW_ALL_ORIGINS = True
